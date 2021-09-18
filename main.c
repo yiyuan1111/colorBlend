@@ -43,7 +43,7 @@ typedef struct tagBITMAPINFO
 
 int print_help(){
     printf("0: print help! \n"
-        "1: ./colorBlend 1 [light] [saturation]. Get src's red color with light and saturation adjustable: get_src_with_light_and_saturation()! \n"
+        "1: ./colorBlend 1 [light] [saturation]. Get src's color with light and saturation adjustable: get_src_with_light_and_saturation()! \n"
         "2: print help! \n");
 }
 
