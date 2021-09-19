@@ -1,5 +1,5 @@
 colorBlend: main.c
-	gcc main.c -o colorBlend
+	gcc -Werror  main.c -o colorBlend
 
 clean:
 	rm colorBlend main.o -f

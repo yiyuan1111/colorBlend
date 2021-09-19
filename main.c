@@ -17,6 +17,8 @@ typedef char                INT8;
 #define GREEN 1
 #define BLUE  0
 
+#define MAX_FILE_NAME_LEN 100
+
 typedef struct tagBITMAPFILEHEADER
 {
     UINT16 bfType;
@@ -42,8 +44,10 @@ typedef struct tagBITMAPINFO
 } BITMAPINFO;
 
 int print_help(){
-    printf("0: print help! \n"
-        "1: ./colorBlend 1 [light] [saturation]. Get src's color with light and saturation adjustable: get_src_with_light_and_saturation()! \n"
+    printf("Usage: ./colorBlend testCase [-s SRC_PATH] [-d DST_PATH] [-o OUT_PATH] [-l LIGHT] [-t SATURATION]"
+        "example: ./colorBlend 1 -l 120 -t 240 -s src_24.bmp -d dst_24.bmp -o out_24.bmp"
+        "0: print help! \n"
+        "1: Get src's color with light and saturation adjustable: get_src_with_light_and_saturation() \n"
         "2: print help! \n");
 }
 
@@ -172,7 +176,7 @@ int convert_RGB_by_saturation(float *finRed, float *finGreen, float *finBlue, fl
     return rc;
 }
 
-int get_src_with_light_and_saturation(int argc, char *argv[],
+int get_src_with_light_and_saturation(UINT32 iLight, UINT32 iSaturation,
     UINT8* buf_src, BITMAPFILEHEADER *bmpHeader_src, BITMAPINFO *bmpInfo_src, UINT8 *pixel_ptr_src,
     UINT8* buf_out, BITMAPFILEHEADER *bmpHeader_out, BITMAPINFO *bmpInfo_out, UINT8 *pixel_ptr_out)
 {
@@ -187,22 +191,8 @@ int get_src_with_light_and_saturation(int argc, char *argv[],
     float fAlpha_R = 1.0, fAlpha_G = 1.0, fAlpha_B = 1.0;
     float fLight, fSaturation;
     //UINT32 iRed, iBlue, iGreen;
-    UINT32 iLight = 120, iSaturation = 240;
-
-    //get input para
-    if(argc > 2){
-        iLight = (UINT32)atoi(argv[2]);
-        if(iLight > 240){
-            iLight = 240;
-        }
-    }
-
-    if(argc > 3){
-        iSaturation = (UINT32)atoi(argv[3]);
-        if(iSaturation > 240){
-            iSaturation = 240;
-        }
-    }
+    //UINT32 iLight = 120, iSaturation = 240;
+    char* file_path = NULL;
 
     //calculate the light ration
     if(iLight >= 120){
@@ -212,10 +202,9 @@ int get_src_with_light_and_saturation(int argc, char *argv[],
         //fRGB_new = fRGB*fLight
         fLight = ((float)iLight)/120;
     }
+
     //calculate the saturation ratio
-    if(1){
-        fSaturation = ((float)iSaturation)/240;
-    }
+    fSaturation = ((float)iSaturation)/240;
 
     printf("COLOR_BLEND: get_src_with_light_and_saturation: iLight=%d, iSaturation=%d \n", iLight,iSaturation);
 
@@ -312,9 +301,9 @@ int read_file( char* file_name, UINT8** buf, INT32* size)
 
 int main(int argc,char *argv[]){
     FILE *fp_out = NULL;
-    char src_name[]={"src_24.bmp"};
-    char dst_name[]={"dst_24.bmp"};
-    char out_name[]={"out_24.bmp"};
+    char src_name[MAX_FILE_NAME_LEN]={"src_24.bmp"};
+    char dst_name[MAX_FILE_NAME_LEN]={"dst_24.bmp"};
+    char out_name[MAX_FILE_NAME_LEN]={"out_24.bmp"};
     UINT8* pBuf_src = NULL;
     UINT8* pBuf_dst = NULL;
     UINT8* pBuf_out = NULL;
@@ -331,10 +320,12 @@ int main(int argc,char *argv[]){
     UINT8* dstPixels = NULL;
     UINT8* outPixels = NULL;
 
+    UINT32 iLight = 120, iSaturation = 240;
     INT32 test_case = 0;
     int rc = 0;
     int count =0;
     UINT8 byte=0;
+    UINT32 i;
 
     //if(argc>1){
     //    printf("The command line has %d arguments :\n",argc-1);
@@ -342,9 +333,48 @@ int main(int argc,char *argv[]){
     //        printf("%d: %s\n",count,argv[count]);
     //    }
     //}
-    if(argc > 1)
+    if(argc > 1){
         test_case = (UINT32)atoi(argv[1]);
-    else{
+
+        i = 2;
+        while (argv[i]) {
+            if (strcmp(argv[i], "-s") == 0) {
+                i++;
+                if (argv[i])
+                    strcpy(src_name, argv[i]);
+            }
+            if (strcmp(argv[i], "-d") == 0) {
+                i++;
+                if (argv[i])
+                    strcpy(dst_name, argv[i]);
+            }
+            if (strcmp(argv[i], "-o") == 0) {
+                i++;
+                if (argv[i])
+                    strcpy(out_name, argv[i]);
+            }
+            if (strcmp(argv[i], "-l") == 0) {
+                i++;
+                if (argv[i]){
+                    iLight = (UINT32)atoi(argv[i]);
+                    if(iLight > 240){
+                        iLight = 240;
+                    }
+                }
+            }
+            if (strcmp(argv[i], "-t") == 0) {
+                i++;
+                if (argv[i]){
+                    iSaturation = (UINT32)atoi(argv[i]);
+                    if(iSaturation > 240){
+                        iSaturation = 240;
+                    }
+                }
+            }
+            if (argv[i])
+                i++;
+        }
+    }else{
         print_help();
         return 0;
     }
@@ -377,7 +407,7 @@ PROCESS_IMAGE:
             print_help();
             break;
         case 1:
-            get_src_with_light_and_saturation(argc, argv, pBuf_src, &bmpHeader_src, &bmpInfo_src, srcPixels,
+            get_src_with_light_and_saturation(iLight, iSaturation, pBuf_src, &bmpHeader_src, &bmpInfo_src, srcPixels,
                 pBuf_out, &bmpHeader_out, &bmpInfo_out, outPixels);
             out_size = bmpHeader_out.bfSize;
             break;
