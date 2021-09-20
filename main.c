@@ -1,6 +1,7 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
+#include<math.h>
 
 typedef unsigned int        UINT32;
 typedef int                 INT32;
@@ -44,11 +45,15 @@ typedef struct tagBITMAPINFO
 } BITMAPINFO;
 
 int print_help(){
-    printf("Usage: ./colorBlend testCase [-s SRC_PATH] [-d DST_PATH] [-o OUT_PATH] [-l LIGHT] [-t SATURATION]"
-        "example: ./colorBlend 1 -l 120 -t 240 -s src_24.bmp -d dst_24.bmp -o out_24.bmp"
-        "0: print help! \n"
-        "1: Get src's color with light and saturation adjustable: get_src_with_light_and_saturation() \n"
-        "2: print help! \n");
+    printf("Usage: ./colorBlend testCase [-s SRC_PATH] [-d DST_PATH] [-o OUT_PATH] [-l LIGHT] [-t SATURATION] [-h HUE] [-rgb RED GREEN BLUE]"
+            "example: \n"
+            "    ./colorBlend 1 -l 120 -t 240 -s src_24.bmp -d dst_24.bmp -o out_24.bmp \n"
+            "    ./colorBlend 2 -rgb 233 0 233 \n"
+            "    ./colorBlend 3 -l 142 -t 120 -h 74 \n"
+            "0: print help! \n"
+            "1: Get src's color with light and saturation adjustable: get_src_with_light_and_saturation() \n"
+            "2: convert RGB to light saturation hue. rgb_2_color() \n"
+            "3: convert light saturation hue to RGB. color_2_rgb()");
 }
 
 
@@ -63,10 +68,12 @@ int bmp_parse(UINT8* buf, BITMAPFILEHEADER *bmpHeader, BITMAPINFO *bmpInfo, UINT
         bmpHeader->bfType = (((UINT16)ptr[0])<<8) + (UINT16)ptr[1];
         bmpHeader->bfSize = (((UINT32)ptr[5])<<24) + (((UINT32)ptr[4])<<16) + (((UINT32)ptr[3])<<8) + (UINT32)ptr[2];
         bmpHeader->bfOffBits = (((UINT32)ptr[0xd])<<24) + (((UINT32)ptr[0xc])<<16) + (((UINT32)ptr[0xb])<<8) + (UINT32)ptr[0xa];
-        //printf("COLOR_BLEND: bmp_parse: data=%x %x %x %x %x %x %x %x \n",ptr[0],ptr[1],ptr[2],ptr[3],ptr[4],ptr[5],ptr[6],ptr[7]);
+        //printf("COLOR_BLEND: %s:%d: data=%x %x %x %x %x %x %x %x \n",
+        //     __FUNCTION__, __LINE__, ptr[0],ptr[1],ptr[2],ptr[3],ptr[4],ptr[5],ptr[6],ptr[7]);
 
         data = (((UINT32)ptr[5])<<24) + (((UINT32)ptr[4])<<16) + (((UINT32)ptr[3])<<8) + (UINT32)ptr[2];
-        //printf("COLOR_BLEND: bmp_parse: bfType=0x%x, bfSize=0x%x ,bfOffBits=0x%x, data=0x%x\n",bmpHeader->bfType, bmpHeader->bfSize, bmpHeader->bfOffBits, data);
+        //printf("COLOR_BLEND: %s:%d: bfType=0x%x, bfSize=0x%x ,bfOffBits=0x%x, data=0x%x\n",
+        // __FUNCTION__, __LINE__, bmpHeader->bfType, bmpHeader->bfSize, bmpHeader->bfOffBits, data);
 
         //bmp info
         bmpInfo->biSize = (((UINT32)ptr[0x11])<<24) + (((UINT32)ptr[0x10])<<16) + (((UINT32)ptr[0xf])<<8) + (UINT32)ptr[0xe];
@@ -80,19 +87,19 @@ int bmp_parse(UINT8* buf, BITMAPFILEHEADER *bmpHeader, BITMAPINFO *bmpInfo, UINT
         bmpInfo->biYpelsPerMeter = (((UINT32)ptr[0x2d])<<24) + (((UINT32)ptr[0x2c])<<16) + (((UINT32)ptr[0x2b])<<8) + (UINT32)ptr[0x2a];
         bmpInfo->biClrUsed = (((UINT32)ptr[0x31])<<24) + (((UINT32)ptr[0x30])<<16) + (((UINT32)ptr[0x2f])<<8) + (UINT32)ptr[0x2e];
         bmpInfo->biClrImportant = (((UINT32)ptr[0x35])<<24) + (((UINT32)ptr[0x34])<<16) + (((UINT32)ptr[0x33])<<8) + (UINT32)ptr[0x32];
-        //printf("COLOR_BLEND: bmp_parse: biSize=0x%x, biWidth=%d ,biHeight=%d, biPlanes=%d, biBitCount=%d, biCompression=%d, biSizeImage=0x%x,"
-        //    "  biXpelsPerMeter=%d, biYpelsPerMeter=%d, biClrUsed=%d, biClrImportant=%d\n",
+        //printf("COLOR_BLEND: %s:%d: biSize=0x%x, biWidth=%d ,biHeight=%d, biPlanes=%d, biBitCount=%d, biCompression=%d, biSizeImage=0x%x,"
+        //    "  biXpelsPerMeter=%d, biYpelsPerMeter=%d, biClrUsed=%d, biClrImportant=%d\n", __FUNCTION__, __LINE__,
         //    bmpInfo->biSize, bmpInfo->biWidth, bmpInfo->biHeight, bmpInfo->biPlanes,
         //    bmpInfo->biBitCount, bmpInfo->biCompression, bmpInfo->biSizeImage, bmpInfo->biXpelsPerMeter,
         //    bmpInfo->biYpelsPerMeter, bmpInfo->biClrUsed, bmpInfo->biClrImportant);
 
         *pixel_ptr = &ptr[bmpHeader->bfOffBits];
-        //printf("COLOR_BLEND: bmp_parse: ptr=%p, pixel_ptr=%p \n", ptr,*pixel_ptr);
+        //printf("COLOR_BLEND: %s:%d: ptr=%p, pixel_ptr=%p \n",  __FUNCTION__, __LINE__, ptr,*pixel_ptr);
 
         return 0;
     } else{
-        printf("COLOR_BLEND: bmp_parse: bad parameters: buf=%p, bmpHeader=%p, bmpInfo=%p, *pixel_ptr=%p \n",
-            buf, bmpHeader, bmpInfo, *pixel_ptr);
+        printf("COLOR_BLEND: %s:%d: bad parameters: buf=%p, bmpHeader=%p, bmpInfo=%p, *pixel_ptr=%p \n",
+             __FUNCTION__, __LINE__, buf, bmpHeader, bmpInfo, *pixel_ptr);
         return -1;
     }
 }
@@ -111,22 +118,25 @@ int gen_out_info_base_on_src(UINT8* buf_src, BITMAPFILEHEADER *bmpHeader_src, BI
             memcpy(bmpInfo_out, bmpInfo_src, sizeof(BITMAPINFO));
             memcpy(*buf_out, buf_src, bmpHeader_out->bfOffBits);
 
-            //printf("COLOR_BLEND: gen_out_info_base_on_src: bfType=0x%x, bfSize=0x%x ,bfOffBits=0x%x, sizeof(bmpHeader_src)=%ld\n",
-            //    bmpHeader_out->bfType, bmpHeader_out->bfSize, bmpHeader_out->bfOffBits, sizeof(BITMAPFILEHEADER));
+            //printf("COLOR_BLEND: %s:%d: bfType=0x%x, bfSize=0x%x ,bfOffBits=0x%x, sizeof(bmpHeader_src)=%ld\n",
+            //     __FUNCTION__, __LINE__,
+            //     bmpHeader_out->bfType, bmpHeader_out->bfSize, bmpHeader_out->bfOffBits, sizeof(BITMAPFILEHEADER));
 
 
             ptr = *buf_out;
             *pixel_ptr_out = &ptr[bmpHeader_out->bfOffBits];
 
-           // printf("COLOR_BLEND: gen_out_info_base_on_src: buf_out=%p, pixel_ptr_out=%p, offset=%x, data=%x %x %x %x %x %x %x %x %x %x %x %x\n",
+           // printf("COLOR_BLEND: %s:%d: buf_out=%p, pixel_ptr_out=%p, offset=%x, data=%x %x %x %x %x %x %x %x %x %x %x %x\n",
+           //      __FUNCTION__, __LINE__,
            //     *buf_out,*pixel_ptr_out, bmpHeader_out->bfOffBits,
            //     ptr[0],ptr[1],ptr[2],ptr[3],ptr[4],ptr[5],ptr[6],ptr[7],ptr[8],ptr[9],ptr[0xa],ptr[0xb]);
         }
 
         return 0;
     } else {
-        printf("COLOR_BLEND: gen_out_info_base_on_src: bad parameters: buf=%p %p, bmpHeader=%p %p, bmpInfo=%p %p, *pixel_ptr=%p %p \n",
-            buf_src, *buf_out, bmpHeader_src,bmpHeader_out, bmpInfo_src,bmpInfo_out, *pixel_ptr_src,*pixel_ptr_out);
+        printf("COLOR_BLEND: %s:%d: bad parameters: buf=%p %p, bmpHeader=%p %p, bmpInfo=%p %p, *pixel_ptr=%p %p \n",
+             __FUNCTION__, __LINE__,
+             buf_src, *buf_out, bmpHeader_src,bmpHeader_out, bmpInfo_src,bmpInfo_out, *pixel_ptr_src,*pixel_ptr_out);
         return -1;
     }
 }
@@ -135,10 +145,8 @@ inline float convert_RGB_by_light(float fRGB, UINT32 iLight, float fLight){
     float fNew_rgb;
 
     if(iLight >= 120){
-        //fRGB_new = fRGB+(1.0-fRGB)*fLight
         fNew_rgb = fRGB + (1.0 - fRGB) * fLight;
     }else{
-        //fRGB_new = fRGB*fLight
         fNew_rgb = fRGB * fLight;
     }
     return fNew_rgb;
@@ -190,9 +198,6 @@ int get_src_with_light_and_saturation(UINT32 iLight, UINT32 iSaturation,
     float fRed, fBlue, fGreen;
     float fAlpha_R = 1.0, fAlpha_G = 1.0, fAlpha_B = 1.0;
     float fLight, fSaturation;
-    //UINT32 iRed, iBlue, iGreen;
-    //UINT32 iLight = 120, iSaturation = 240;
-    char* file_path = NULL;
 
     //calculate the light ration
     if(iLight >= 120){
@@ -206,7 +211,7 @@ int get_src_with_light_and_saturation(UINT32 iLight, UINT32 iSaturation,
     //calculate the saturation ratio
     fSaturation = ((float)iSaturation)/240;
 
-    printf("COLOR_BLEND: get_src_with_light_and_saturation: iLight=%d, iSaturation=%d \n", iLight,iSaturation);
+    printf("COLOR_BLEND: %s:%d: iLight=%d, iSaturation=%d \n",  __FUNCTION__, __LINE__, iLight,iSaturation);
 
     //data copy with alpha ration
     if((buf_src) && (bmpHeader_src) && (bmpInfo_src) && (pixel_ptr_src != NULL) &&
@@ -250,17 +255,202 @@ int get_src_with_light_and_saturation(UINT32 iLight, UINT32 iSaturation,
                 }
             }
 
-            printf("COLOR_BLEND: get_src_with_light_and_saturation: width=%d, hight=%d, pixel_cnt=%d, byte_per_pixel=%d, pixel_bytes=%d %d. \n"
-                "data=%x %x %x %x %x %x %x %x %x %x %x %x\n",
+            printf("COLOR_BLEND: %s:%d: width=%d, hight=%d, pixel_cnt=%d, byte_per_pixel=%d, pixel_bytes=%d %d. \n"
+                "data=%x %x %x %x %x %x %x %x %x %x %x %x\n", __FUNCTION__, __LINE__,
                 width, hight, pixel_cnt, byte_per_pixel,bmpInfo_out->biSizeImage, pixel_cnt*byte_per_pixel,
                 ptr[0],ptr[1],ptr[2],ptr[3],ptr[4],ptr[5],ptr[6],ptr[7],ptr[8],ptr[9],ptr[0xa],ptr[0xb]);
 
         return 0;
     } else {
-        printf("COLOR_BLEND: get_src_with_light_and_saturation: bad parameters: buf=%p %p, bmpHeader=%p %p, bmpInfo=%p %p, pixel_ptr=%p %p \n",
-            buf_src,buf_out, bmpHeader_src,bmpHeader_out, bmpInfo_src,bmpInfo_out, pixel_ptr_src, pixel_ptr_out);
+        printf("COLOR_BLEND: %s:%d: bad parameters: buf=%p %p, bmpHeader=%p %p, bmpInfo=%p %p, pixel_ptr=%p %p \n",
+             __FUNCTION__, __LINE__,
+             buf_src,buf_out, bmpHeader_src,bmpHeader_out, bmpInfo_src,bmpInfo_out, pixel_ptr_src, pixel_ptr_out);
         return -1;
     }
+}
+
+int rgb_2_color(UINT32 iRed, UINT32 iGreen, UINT32 iBlue)
+{
+    UINT8 *ptr = NULL;
+    UINT32 pixel_cnt = 0;
+    UINT32 width = 0;
+    UINT32 hight = 0;
+    UINT32 byte_per_pixel = 0;
+    UINT32 byte_per_row = 0;
+    UINT32 i,j,offset;
+    float fRed, fBlue, fGreen;
+    float fLight, fSaturation, fHue;
+    float fMin, fMax, fC, fMm, fTmp;
+    INT32 iLight, iSaturation, iHue;
+    int rc = 0;
+
+    fRed = ((float)iRed)/255;
+    fBlue = ((float)iBlue)/255;
+    fGreen = ((float)iGreen)/255;
+
+    if(fRed > 1)
+        fRed = 1;
+    if(fBlue > 1)
+        fBlue = 1;
+    if(fGreen > 1)
+        fGreen = 1;
+
+    if(fRed > fBlue){
+        fMin = fBlue;
+        fMax = fRed;
+    }else{
+        fMax = fBlue;
+        fMin = fRed;
+    }
+
+    if(fGreen > fMax){
+        fMax = fGreen;
+    }
+    if(fGreen < fMin){
+        fMin = fGreen;
+    }
+
+    fC = fMax - fMin;
+    fMm = fMax + fMin;
+
+    //calc light
+    fLight = fMm / 2;
+    iLight = (INT32)(fLight * 240);
+
+    //calc saturation.
+    if(fLight == 1){
+        fSaturation =  -1;
+    }else{
+        if(fMm > 1){
+            fTmp = 2 - fMm;
+        }else{
+            fTmp = fMm;
+        }
+        if(fTmp == 0)
+            fSaturation = -1;
+        else
+            fSaturation = fC / fTmp;
+    }
+    iSaturation = (INT32)(fSaturation * 240);
+
+    //calc hue
+    if(fC != 0){
+        if(fMax == fBlue){
+            fTmp = (fRed - fGreen) / fC + 4;
+        }else if(fMax == fGreen){
+            fTmp = (fBlue - fRed) / fC + 2;
+        }else{ //fMax == fRed
+            if(fGreen > fBlue)
+                fTmp = (fGreen - fBlue) / fC;
+            else
+                fTmp = (fGreen - fBlue) / fC + 6;
+        }
+    }else{
+        fTmp = -1;
+    }
+    fHue = (INT32)(fTmp * 60);
+    iHue = (INT32)(fHue *240 / 360);
+
+    printf("COLOR_BLEND: %s:%d: RGB %d %d %d: iHue=%d %.0f', iLight=%d %.2f, iSaturation=%d %.2f \n",
+        __FUNCTION__, __LINE__, iRed, iGreen, iBlue, iHue,fHue, iLight,fLight, iSaturation, fSaturation);
+
+    return rc;
+}
+
+int color_2_rgb(UINT32 iLight, UINT32 iSaturation, UINT32 iHue)
+{
+    UINT8 *ptr = NULL;
+    UINT32 pixel_cnt = 0;
+    UINT32 width = 0;
+    UINT32 hight = 0;
+    UINT32 byte_per_pixel = 0;
+    UINT32 byte_per_row = 0;
+    UINT32 i,j,offset;
+    float fRed, fBlue, fGreen;
+    float fLight, fSaturation, fHue;
+    float fMin, fMax, fC, fMm, fTmp;
+    INT32 iRed, iGreen, iBlue;
+    int rc = 0;
+
+    //calculate the light ration
+    fLight = ((float)iLight)/240;
+    fSaturation = ((float)iSaturation)/240;
+    if(iHue > 239)   //now iHue in 0~239
+        iHue = 239;
+    //fHue = ((float)iHue)*358.5/239;
+    fHue = ((float)iHue)*360/240;
+    if(fLight > 1)
+        fLight = 1;
+    if(fSaturation > 1)
+        fSaturation = 1;
+
+
+    fMm = fLight * 2;
+    if(fMm > 1){
+        fTmp = 2 - fMm;
+    }else{
+        fTmp = fMm;
+    }
+    fC = fSaturation * fTmp;
+
+    fMax = (fMm + fC)/2;
+    fMin = (fMm - fC)/2;
+
+    //if(fMax == fBlue){
+    //    fTmp = (fRed - fGreen) / fC + 4;
+    //}else if(fMax == fGreen){
+    //    fTmp = (fBlue - fRed) / fC + 2;
+    //}else{ //fMax == fRed
+    //    if(fGreen > fBlue)
+    //        fTmp = (fGreen - fBlue) / fC;
+    //    else
+    //        fTmp = (fGreen - fBlue) / fC + 6;
+    //}
+    fTmp = (fHue / 60);
+    switch ((int)fTmp)
+    {
+        case 0:
+            fRed = fMax;
+            fGreen = fMin + fTmp*fC;
+            fBlue = fMin;
+            break;
+        case 1:
+            fRed = fMin - (fTmp-2)*fC;;
+            fGreen = fMax;
+            fBlue = fMin;
+            break;
+        case 2:
+            fRed = fMin;
+            fGreen = fMax;
+            fBlue = fMin + (fTmp-2)*fC;
+            break;
+        case 3: //./colorBlend 3 -l 162 -t 84 -h 144
+            fRed = fMin;
+            fGreen = fMin - (fTmp-4)*fC;
+            fBlue = fMax;
+            break;
+        case 4:
+            fRed = fMin + (fTmp-4)*fC;
+            fGreen = fMin;
+            fBlue = fMax;
+            break;
+        case 5:  // ./colorBlend 3 -l 179 -t 240 -h 232
+            fRed = fMax;
+            fGreen = fMin;
+            fBlue = fMin - (fTmp-6)*fC;
+            break;
+        default:
+            fRed = fGreen = fBlue = 0;
+            break;
+    }
+
+    iRed = (UINT32)(fRed * 255);
+    iGreen = (UINT32)(fGreen * 255);
+    iBlue = (UINT32)(fBlue * 255);
+    printf("COLOR_BLEND: %s:%d: RGB %d %d %d. fTmp=%f, fHue=%f, iHue=%d\n",
+        __FUNCTION__, __LINE__, iRed, iGreen, iBlue, fTmp, fHue, iHue);
+
+    return rc;
 }
 
 int read_file( char* file_name, UINT8** buf, INT32* size)
@@ -271,14 +461,14 @@ int read_file( char* file_name, UINT8** buf, INT32* size)
 
     if (fp == NULL)
     {
-        printf("COLOR_BLEND: read_file: can't open file %s\n",file_name);
+        printf("COLOR_BLEND: %s:%d: can't open file %s\n", __FUNCTION__, __LINE__, file_name);
         return -1;
     }
 
     //get file len
     rc = fseek(fp, 0L, SEEK_END); //to end of file
     if(rc != 0){
-        printf("COLOR_BLEND: read_file: can't seek file %s\n",file_name);
+        printf("COLOR_BLEND: %s:%d: can't seek file %s\n", __FUNCTION__, __LINE__, file_name);
         return -1;
     }
     len = ftell(fp); //file len
@@ -320,8 +510,10 @@ int main(int argc,char *argv[]){
     UINT8* dstPixels = NULL;
     UINT8* outPixels = NULL;
 
-    UINT32 iLight = 120, iSaturation = 240;
+    UINT32 iRed, iBlue, iGreen;
+    UINT32 iLight = 120, iSaturation = 240, iHue = 0;
     INT32 test_case = 0;
+
     int rc = 0;
     int count =0;
     UINT8 byte=0;
@@ -371,6 +563,38 @@ int main(int argc,char *argv[]){
                     }
                 }
             }
+            if (strcmp(argv[i], "-h") == 0) {
+                i++;
+                if (argv[i]){
+                    iHue = (UINT32)atoi(argv[i]);
+                    if(iHue >= 240){
+                        iHue = 239;
+                    }
+                }
+            }
+            if (strcmp(argv[i], "-rgb") == 0) {
+                i++;
+                if (argv[i]){
+                    iRed = (UINT32)atoi(argv[i]);
+                    if(iRed > 255){
+                        iRed = 255;
+                    }
+                }
+                i++;
+                if (argv[i]){
+                    iGreen = (UINT32)atoi(argv[i]);
+                    if(iGreen > 255){
+                        iGreen = 255;
+                    }
+                }
+                i++;
+                if (argv[i]){
+                    iBlue = (UINT32)atoi(argv[i]);
+                    if(iBlue > 255){
+                        iBlue = 255;
+                    }
+                }
+            }
             if (argv[i])
                 i++;
         }
@@ -382,18 +606,19 @@ int main(int argc,char *argv[]){
 BEGIN:
     rc = read_file(src_name, &pBuf_src, &src_size);
     if (rc <= 0){
-        printf("COLOR_BLEND: MAIN: can't open bitmap file %s\n",src_name);
+        printf("COLOR_BLEND: %s:%d: can't open bitmap file %s\n", __FUNCTION__, __LINE__, src_name);
         return -1;
     }
 
     rc = read_file(dst_name, &pBuf_dst, &dst_size);
     if (rc <= 0){
-        printf("COLOR_BLEND: MAIN: can't open bitmap file %s\n",dst_name);
+        printf("COLOR_BLEND: %s:%d: can't open bitmap file %s\n", __FUNCTION__, __LINE__, dst_name);
         return -1;
     }
 
     byte = pBuf_dst[0];
-    printf("COLOR_BLEND: MAIN: name=%s  %s, size src dst=%d %d, pBuf_dst[0]=%x \n",src_name, dst_name, src_size, dst_size,byte);
+    printf("COLOR_BLEND: %s:%d: name=%s  %s, size src dst=%d %d, pBuf_dst[0]=%x \n",
+         __FUNCTION__, __LINE__, src_name, dst_name, src_size, dst_size,byte);
 
     bmp_parse(pBuf_src, &bmpHeader_src, &bmpInfo_src, &srcPixels);
     bmp_parse(pBuf_dst, &bmpHeader_dst, &bmpInfo_dst, &dstPixels);
@@ -403,16 +628,16 @@ BEGIN:
 PROCESS_IMAGE:
 
     switch(test_case){
-        case 0:
-            print_help();
-            break;
         case 1:
             get_src_with_light_and_saturation(iLight, iSaturation, pBuf_src, &bmpHeader_src, &bmpInfo_src, srcPixels,
                 pBuf_out, &bmpHeader_out, &bmpInfo_out, outPixels);
             out_size = bmpHeader_out.bfSize;
             break;
         case 2:
-            print_help();
+            rgb_2_color(iRed, iGreen, iBlue);
+            break;
+        case 3:
+            color_2_rgb(iLight, iSaturation, iHue);
             break;
         default:
             print_help();
@@ -425,7 +650,8 @@ END:
 
     if(fp_out){
         fwrite(pBuf_out, out_size, 1, fp_out);
-        printf("COLOR_BLEND: MAIN: write out bitmap data to %s, size=%d. \n", out_name, out_size);
+        printf("COLOR_BLEND: %s:%d: write out bitmap data to %s, size=%d. \n",
+             __FUNCTION__, __LINE__, out_name, out_size);
         fclose(fp_out);
     }
 
