@@ -45,15 +45,17 @@ typedef struct tagBITMAPINFO
 } BITMAPINFO;
 
 int print_help(){
-    printf("Usage: ./colorBlend testCase [-s SRC_PATH] [-d DST_PATH] [-o OUT_PATH] [-l LIGHT] [-t SATURATION] [-h HUE] [-rgb RED GREEN BLUE]"
+    printf("Usage: ./colorBlend testCase [-s SRC_PATH] [-d DST_PATH] [-o OUT_PATH] [-l LIGHT] [-t SATURATION] [-h HUE] [-rgb RED GREEN BLUE] [-bm BLEND_MODE] [-as ALPHA_SRC] [-ad ALPHA_DST]"
             "example: \n"
-            "    ./colorBlend 1 -l 120 -t 240 -s src_24.bmp -d dst_24.bmp -o out_24.bmp \n"
-            "    ./colorBlend 2 -rgb 233 0 233 \n"
-            "    ./colorBlend 3 -l 142 -t 120 -h 74 \n"
+            "   ./colorBlend 1 -l 120 -t 240 -s src_24.bmp -d dst_24.bmp -o out_24.bmp \n"
+            "   ./colorBlend 2 -rgb 233 0 233 \n"
+            "   ./colorBlend 3 -l 142 -t 120 -h 74 \n"
+            "   ./colorBlend 4 -bm 5 -as 100 -ad 100 \n"
             "0: print help! \n"
             "1: Get src's color with light and saturation adjustable: get_src_with_light_and_saturation() \n"
             "2: convert RGB to light saturation hue. rgb_2_color() \n"
-            "3: convert light saturation hue to RGB. color_2_rgb()");
+            "3: convert light saturation hue to RGB. color_2_rgb() \n"
+            "4: blend SRC and DST by BLEND_MODE blend_src_dst() \n");
 }
 
 
@@ -453,6 +455,185 @@ int color_2_rgb(UINT32 iLight, UINT32 iSaturation, UINT32 iHue)
     return rc;
 }
 
+/*
+    Function: blend src and dst pixels by blend_mode
+
+    base on: Cr = Cs*Fs + Cd*Fd ,   Ar = As*Fs + Ad*Fd
+    1. CLEAR    Fs = Fd = 0
+    2. SRC      Fs = 1, Fd = 0
+    3. DST      Fs = 0, Fd = 1
+    4. SRC OVER Fs = 1, Fd = (1-As)
+    5. DST OVER Fs = (1-Ad), Fd = 1
+    6. SRC IN   Fs = Ad, Fd = 0
+    7. DST IN   Fs = 0, Fd = As
+    8. SRC OUT  Fs = (1-Ad), Fd = 0
+    9. DST OUT  Fs = 0, Fd = (1-As)
+    10.SRC ATOP Fs = Ad, Fd = (1-As)
+    11.DST ATOP Fs = (1-Ad), Fd = As
+    12.XOR      Fs = (1-Ad), Fd = (1-As)
+*/
+int blend_src_dst(UINT32 blend_mode, UINT32 iAlha_s, UINT32 iAlha_d,
+    UINT8* buf_src, BITMAPFILEHEADER *bmpHeader_src, BITMAPINFO *bmpInfo_src, UINT8 *pixel_ptr_src,
+    UINT8* buf_dst, BITMAPFILEHEADER *bmpHeader_dst, BITMAPINFO *bmpInfo_dst, UINT8 *pixel_ptr_dst,
+    UINT8* buf_out, BITMAPFILEHEADER *bmpHeader_out, BITMAPINFO *bmpInfo_out, UINT8 *pixel_ptr_out)
+{
+    UINT8 *ptr = NULL;
+    UINT32 pixel_cnt = 0;
+    UINT32 width = 0;
+    UINT32 hight = 0;
+    UINT32 byte_per_pixel = 0;
+    UINT32 byte_per_row = 0;
+    UINT32 i,j,offset;
+    float fRed_s, fBlue_s, fGreen_s, fRed_d, fBlue_d, fGreen_d, fRed_o, fBlue_o, fGreen_o;
+    float fFs, fFd;    //fraction.
+    float fAs, fAd, fAo;
+    UINT32 iAlha_o;
+    char mode_str[10];
+
+    //calc alpha coe in float
+    if(iAlha_s > 100){
+        iAlha_s = 100;
+    }
+    fAs = ((float)iAlha_s)/100;
+
+    if(iAlha_d > 100){
+        iAlha_d = 100;
+    }
+    fAd = ((float)iAlha_d)/100;
+
+    //calculate Fs Fd
+    switch(blend_mode){
+        case 1:  //1. CLEAR    Fs = Fd = 0\
+            fFs = 0;
+            fFd = 0;
+            strcpy(mode_str,"CLEAR");
+            break;
+        case 2:  //2. SRC      Fs = 1, Fd = 0
+            fFs = 1;
+            fFd = 0;
+            strcpy(mode_str,"SRC");
+            break;
+        case 3:  //3. DST      Fs = 0, Fd = 1
+            fFs = 0;
+            fFd = 1;
+            strcpy(mode_str,"DST");
+            break;
+        case 4:  //4. SRC OVER Fs = 1, Fd = (1-As)
+            fFs = 1;
+            fFd = 1 - fAs;
+            strcpy(mode_str,"SRC OVER");
+            break;
+        case 5:  //5. DST OVER Fs = (1-Ad), Fd = 1
+            fFs = 1 - fAd;
+            fFd = 1;
+            strcpy(mode_str,"DST OVER");
+            break;
+        case 6:  //6. SRC IN   Fs = Ad, Fd = 0
+            fFs = fAd;
+            fFd = 0;
+            strcpy(mode_str,"SRC IN");
+            break;
+        case 7:  //7. DST IN   Fs = 0, Fd = As
+            fFs = 0;
+            fFd = fAs;
+            strcpy(mode_str,"DST IN");
+            break;
+        case 8:  //8. SRC OUT  Fs = (1-Ad), Fd = 0
+            fFs = 1 - fAd;
+            fFd = 0;
+            strcpy(mode_str,"SRC OUT");
+            break;
+        case 9:  //9. DST OUT  Fs = 0, Fd = (1-As)
+            fFs = 0;
+            fFd = 1 - fAs;
+            strcpy(mode_str,"DST OUT");
+            break;
+        case 10:  //10.SRC ATOP Fs = Ad, Fd = (1-As)
+            fFs = fAd;
+            fFd = 1 - fAs;
+            strcpy(mode_str,"SRC ATOP");
+            break;
+        case 11:  //11.DST ATOP Fs = (1-Ad), Fd = As
+            fFs = 1 - fAd;
+            fFd = fAs;
+            strcpy(mode_str,"DST ATOP");
+            break;
+        case 12:  //12.XOR      Fs = (1-Ad), Fd = (1-As)
+            fFs = 1 - fAd;
+            fFd = 1 - fAs;
+            strcpy(mode_str,"XOR");
+            break;
+        default:
+            printf("%s:%d: Bad parameter blend_mode=%d \n",
+                __FUNCTION__, __LINE__, blend_mode);
+            return -1;
+    }
+
+    //calc output alpha: Ar = As*Fs + Ad*Fd
+    fAo = fAs*fFs + fAd*fFd;
+    iAlha_o = (UINT32)(100 * fAo);
+
+    printf("COLOR_BLEND: %s:%d: blend_mode=%d %s:, iAlha_s=%d, iAlha_d=%d, iAlha_o=%d, fFs=%.2f, fFd=%.2f \n",
+        __FUNCTION__, __LINE__, blend_mode, mode_str, iAlha_s, iAlha_d, iAlha_o, fFs, fFd);
+
+    //data copy with alpha ration
+    if((buf_src) && (bmpHeader_src) && (bmpInfo_src) && (pixel_ptr_src != NULL) &&
+        (buf_dst) && (bmpHeader_dst) && (bmpInfo_dst) && (pixel_ptr_dst != NULL) &&
+        (buf_out) && (bmpHeader_out) && (bmpInfo_out) && (pixel_ptr_out != NULL) &&
+        (bmpInfo_out->biBitCount == 24))
+    {
+        ptr = buf_out;
+        width = bmpInfo_out->biWidth;
+        hight = bmpInfo_out->biHeight;
+        pixel_cnt = hight * width;
+        byte_per_pixel = bmpInfo_out->biBitCount >> 3;   // 24b/8=3 bytes
+        byte_per_row = byte_per_pixel * width;
+
+        for(i=0; i<hight; i++){
+            for(j=0; j<width; j++){
+                offset = i*byte_per_row + j*byte_per_pixel;
+
+                fRed_s = ((float)(pixel_ptr_src[offset + RED]))/255;
+                fBlue_s = ((float)(pixel_ptr_src[offset + BLUE]))/255;
+                fGreen_s = ((float)(pixel_ptr_src[offset + GREEN]))/255;
+
+                fRed_d = ((float)(pixel_ptr_dst[offset + RED]))/255;
+                fBlue_d = ((float)(pixel_ptr_dst[offset + BLUE]))/255;
+                fGreen_d = ((float)(pixel_ptr_dst[offset + GREEN]))/255;
+
+                //Cr = Cs*Fs + Cd*Fd
+                fRed_o = fRed_s*fFs + fRed_d*fFd;
+                fGreen_o = fGreen_s*fFs + fGreen_d*fFd;
+                fBlue_o = fBlue_s*fFs + fBlue_d*fFd;
+
+                pixel_ptr_out[offset + RED] = (UINT32)(fRed_o * 255);
+                pixel_ptr_out[offset + GREEN] = (UINT32)(fGreen_o * 255);
+                pixel_ptr_out[offset + BLUE] = (UINT32)(fBlue_o * 255);
+
+                //if(fRed != 1.0)
+                //    printf("%s %d: %d %d:fRed=%f 0x%x, fBlue=%f ,fGreen=%f \n",i,j,
+                //        __FUNCTION__, __LINE__,
+                //        fRed, pixel_ptr_out[offset + RED], fBlue, fGreen);
+            }
+        }
+
+        printf("COLOR_BLEND: %s:%d: width=%d, hight=%d, pixel_cnt=%d, byte_per_pixel=%d, pixel_bytes=%d %d. \n"
+            "data=%x %x %x %x %x %x %x %x %x %x %x %x\n", __FUNCTION__, __LINE__,
+            width, hight, pixel_cnt, byte_per_pixel,bmpInfo_out->biSizeImage, pixel_cnt*byte_per_pixel,
+            ptr[0],ptr[1],ptr[2],ptr[3],ptr[4],ptr[5],ptr[6],ptr[7],ptr[8],ptr[9],ptr[0xa],ptr[0xb]);
+
+        return 0;
+    } else {
+        printf("COLOR_BLEND: %s:%d: bad parameters: buf=%p %p %p, bmpHeader=%p %p %p, "
+            "bmpInfo=%p %p %p, pixel_ptr=%p %p %p \n",
+             __FUNCTION__, __LINE__, buf_src, buf_dst, buf_out,
+             bmpHeader_src, bmpHeader_dst, bmpHeader_out,
+             bmpInfo_src, bmpInfo_dst, bmpInfo_out,
+             pixel_ptr_src, pixel_ptr_dst, pixel_ptr_out);
+        return -1;
+    }
+}
+
 int read_file( char* file_name, UINT8** buf, INT32* size)
 {
     int rc=0;
@@ -510,9 +691,10 @@ int main(int argc,char *argv[]){
     UINT8* dstPixels = NULL;
     UINT8* outPixels = NULL;
 
+    UINT32 iAlha_s, iAlha_d;    //RGB's alpha
     UINT32 iRed, iBlue, iGreen;
     UINT32 iLight = 120, iSaturation = 240, iHue = 0;
-    INT32 test_case = 0;
+    INT32 test_case = 0, blend_mode = 0;
 
     int rc = 0;
     int count =0;
@@ -595,6 +777,34 @@ int main(int argc,char *argv[]){
                     }
                 }
             }
+            if (strcmp(argv[i], "-as") == 0) {
+                i++;
+                if (argv[i]){
+                    iAlha_s = (UINT32)atoi(argv[i]);
+                    if(iAlha_s > 100){
+                        iAlha_s = 100;
+                    }
+                }
+            }
+            if (strcmp(argv[i], "-ad") == 0) {
+                i++;
+                if (argv[i]){
+                    iAlha_d = (UINT32)atoi(argv[i]);
+                    if(iAlha_d > 100){
+                        iAlha_d = 100;
+                    }
+                }
+            }
+            if (strcmp(argv[i], "-bm") == 0) {
+                i++;
+                if (argv[i]){
+                    blend_mode = (UINT32)atoi(argv[i]);
+                    if(blend_mode > 20){
+                        printf("error blend_mode=%d \n", blend_mode);
+                        return -1;
+                    }
+                }
+            }
             if (argv[i])
                 i++;
         }
@@ -629,15 +839,27 @@ PROCESS_IMAGE:
 
     switch(test_case){
         case 1:
-            get_src_with_light_and_saturation(iLight, iSaturation, pBuf_src, &bmpHeader_src, &bmpInfo_src, srcPixels,
+            rc = get_src_with_light_and_saturation(iLight, iSaturation,
+                pBuf_src, &bmpHeader_src, &bmpInfo_src, srcPixels,
                 pBuf_out, &bmpHeader_out, &bmpInfo_out, outPixels);
-            out_size = bmpHeader_out.bfSize;
+            if(rc == 0){
+                out_size = bmpHeader_out.bfSize;
+            }
             break;
         case 2:
             rgb_2_color(iRed, iGreen, iBlue);
             break;
         case 3:
             color_2_rgb(iLight, iSaturation, iHue);
+            break;
+        case 4:
+            blend_src_dst(blend_mode, iAlha_s, iAlha_d,
+                pBuf_src, &bmpHeader_src, &bmpInfo_src, srcPixels,
+                pBuf_dst, &bmpHeader_dst, &bmpInfo_dst, dstPixels,
+                pBuf_out, &bmpHeader_out, &bmpInfo_out, outPixels);
+            if(rc == 0){
+                out_size = bmpHeader_out.bfSize;
+            }
             break;
         default:
             print_help();
