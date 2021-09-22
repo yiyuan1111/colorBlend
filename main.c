@@ -602,9 +602,9 @@ int blend_src_dst(UINT32 blend_mode, UINT32 iAlha_s, UINT32 iAlha_d,
                 fGreen_d = ((float)(pixel_ptr_dst[offset + GREEN]))/255;
 
                 //Cr = Cs*Fs + Cd*Fd
-                fRed_o = fRed_s*fFs + fRed_d*fFd;
-                fGreen_o = fGreen_s*fFs + fGreen_d*fFd;
-                fBlue_o = fBlue_s*fFs + fBlue_d*fFd;
+                fRed_o = (fRed_s*fFs + fRed_d*fFd);
+                fGreen_o = (fGreen_s*fFs + fGreen_d*fFd);
+                fBlue_o = (fBlue_s*fFs + fBlue_d*fFd);
 
                 pixel_ptr_out[offset + RED] = (UINT32)(fRed_o * 255);
                 pixel_ptr_out[offset + GREEN] = (UINT32)(fGreen_o * 255);
@@ -853,7 +853,7 @@ PROCESS_IMAGE:
             color_2_rgb(iLight, iSaturation, iHue);
             break;
         case 4:
-            blend_src_dst(blend_mode, iAlha_s, iAlha_d,
+            rc = blend_src_dst(blend_mode, iAlha_s, iAlha_d,
                 pBuf_src, &bmpHeader_src, &bmpInfo_src, srcPixels,
                 pBuf_dst, &bmpHeader_dst, &bmpInfo_dst, dstPixels,
                 pBuf_out, &bmpHeader_out, &bmpInfo_out, outPixels);
